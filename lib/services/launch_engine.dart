@@ -535,24 +535,13 @@ class LaunchEngine {
     // JVM args do Fabric profile (ex: -DFabricMcEmu=...)
     final fabricJvmArgs =
         fabricJson['arguments']?['jvm'] as List? ?? [];
-    for (final arg in fabricJvmArgs) {
-      if (arg is String) {
-        args.add(
-            _substituteVars(arg, account, gameDir, librariesDir, versionsDir, assetIndexId));
-      }
-      // args do tipo Map com 'rules' são ignorados (compatibilidade)
-    }
+    _addConditionalArgs(fabricJvmArgs, args, account, gameDir, librariesDir, versionsDir, assetIndexId);
 
-    // JVM args do vanilla (contêm -Djava.library.path, etc.)
+    // JVM args do vanilla (contêm -Djava.library.path, -Dos.name, etc.)
     if (vanillaJson != null) {
       final vanillaJvmArgs =
           vanillaJson['arguments']?['jvm'] as List? ?? [];
-      for (final arg in vanillaJvmArgs) {
-        if (arg is String) {
-          args.add(
-              _substituteVars(arg, account, gameDir, librariesDir, versionsDir, assetIndexId));
-        }
-      }
+      _addConditionalArgs(vanillaJvmArgs, args, account, gameDir, librariesDir, versionsDir, assetIndexId);
     }
 
     // Classpath: libraries do Fabric + libraries do vanilla + client.jar
@@ -567,23 +556,13 @@ class LaunchEngine {
     if (vanillaJson != null) {
       final vanillaGameArgs =
           vanillaJson['arguments']?['game'] as List? ?? [];
-      for (final arg in vanillaGameArgs) {
-        if (arg is String) {
-          args.add(
-              _substituteVars(arg, account, gameDir, librariesDir, versionsDir, assetIndexId));
-        }
-      }
+      _addConditionalArgs(vanillaGameArgs, args, account, gameDir, librariesDir, versionsDir, assetIndexId);
     }
 
     // Game args do Fabric (geralmente vazio, mas incluído por completude)
     final fabricGameArgs =
         fabricJson['arguments']?['game'] as List? ?? [];
-    for (final arg in fabricGameArgs) {
-      if (arg is String) {
-        args.add(
-            _substituteVars(arg, account, gameDir, librariesDir, versionsDir, assetIndexId));
-      }
-    }
+    _addConditionalArgs(fabricGameArgs, args, account, gameDir, librariesDir, versionsDir, assetIndexId);
 
     // Resolução / tela cheia
     if (fullscreen) {
@@ -638,6 +617,72 @@ class LaunchEngine {
     return paths.join(separator);
   }
 
+  /// Processa argumentos do Minecraft que podem ser strings diretas ou objetos
+  /// com regras condicionais (ex: args específicos de Windows/macOS/Linux).
+  /// Sem isso, args como -Dos.name=Windows 10 são silenciosamente descartados.
+  void _addConditionalArgs(
+    List<dynamic> argsList,
+    List<String> target,
+    MinecraftAccount account,
+    Directory gameDir,
+    Directory librariesDir,
+    Directory versionsDir,
+    String assetIndexId,
+  ) {
+    for (final arg in argsList) {
+      if (arg is String) {
+        target.add(_substituteVars(
+            arg, account, gameDir, librariesDir, versionsDir, assetIndexId));
+      } else if (arg is Map<String, dynamic>) {
+        // Arg condicional com "rules" e "value"
+        if (!_evaluateRules(arg['rules'] as List? ?? [])) continue;
+        final value = arg['value'];
+        if (value is String) {
+          target.add(_substituteVars(
+              value, account, gameDir, librariesDir, versionsDir, assetIndexId));
+        } else if (value is List) {
+          for (final v in value) {
+            if (v is String) {
+              target.add(_substituteVars(
+                  v, account, gameDir, librariesDir, versionsDir, assetIndexId));
+            }
+          }
+        }
+      }
+    }
+  }
+
+  /// Avalia regras do formato vanilla JSON (mesma lógica de _libraryApplies).
+  bool _evaluateRules(List<dynamic> rules) {
+    if (rules.isEmpty) return true;
+    bool allowed = false;
+    for (final rule in rules) {
+      final ruleMap = rule as Map<String, dynamic>;
+      final action = ruleMap['action'] as String;
+      final os = ruleMap['os'] as Map<String, dynamic>?;
+      final features = ruleMap['features'] as Map<String, dynamic>?;
+
+      // Features como "is_demo_user" e "has_custom_resolution" —
+      // ignoramos (nosso launcher não é demo e resolve resolução externamente)
+      if (features != null) continue;
+
+      if (os == null) {
+        allowed = action == 'allow';
+      } else {
+        final osName = os['name'] as String?;
+        final currentOs = Platform.isWindows
+            ? 'windows'
+            : Platform.isMacOS
+                ? 'osx'
+                : 'linux';
+        if (osName == null || osName == currentOs) {
+          allowed = action == 'allow';
+        }
+      }
+    }
+    return allowed;
+  }
+
   /// Verifica se uma library do vanilla se aplica à plataforma atual
   bool _libraryApplies(Map<String, dynamic> lib) {
     final rules = lib['rules'] as List?;
@@ -678,6 +723,9 @@ class LaunchEngine {
         .replaceAll('\${auth_player_name}', account.username)
         .replaceAll('\${auth_uuid}', account.uuid)
         .replaceAll('\${auth_access_token}', account.accessToken)
+        .replaceAll('\${user_type}', account.isOffline ? 'legacy' : 'msa')
+        .replaceAll('\${auth_xuid}', '') // XUID não é obrigatório para launch
+        .replaceAll('\${clientid}', _clientId)
         .replaceAll(
           '\${version_name}',
           'fabric-loader-$kFabricLoaderVersion-$kMinecraftVersion',
@@ -696,8 +744,13 @@ class LaunchEngine {
           '${gameDir.path}/natives',
         )
         .replaceAll('\${launcher_name}', 'CobbleHypeLauncher')
-        .replaceAll('\${launcher_version}', '1.0');
+        .replaceAll('\${launcher_version}', '1.0')
+        .replaceAll('\${resolution_width}', '1280')
+        .replaceAll('\${resolution_height}', '720');
   }
+
+  // Client ID do Azure — mesmo usado no AuthService
+  static const String _clientId = 'c36a9fb6-4f2a-41ff-90bd-ae7cc92031eb';
 
   Future<Directory> _getGameDir() async {
     final prefs = await SharedPreferences.getInstance();
