@@ -25,7 +25,7 @@ class AuthService {
   // Armazenamento seguro para tokens (Keychain no macOS/iOS, Keystore no Android,
   // libsecret/kwallet no Linux, DPAPI no Windows)
   static const _secureStorage = FlutterSecureStorage();
-  static const String _scope = 'XboxLive.signin offline_access';
+  static const String _scope = 'XboxLive.signin XboxLive.offline_access';
 
   // Timeout padrão para requests HTTP
   static const Duration _httpTimeout = Duration(seconds: 30);
@@ -41,9 +41,12 @@ class AuthService {
     final codeVerifier = _generateCodeVerifier();
     final codeChallenge = _generateCodeChallenge(codeVerifier);
 
-    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    // Usa 127.0.0.1 explícito em vez de "localhost" para evitar ambiguidade
+    // de resolução DNS (localhost pode resolver para ::1 em IPv6, mas o server
+    // escuta em IPv4 — o redirect nunca chegaria).
+    final server = await HttpServer.bind('127.0.0.1', 0);
     final port = server.port;
-    final redirectUri = 'http://localhost:$port';
+    final redirectUri = 'http://127.0.0.1:$port';
 
     final authUrl =
         'https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize'
@@ -82,9 +85,16 @@ class AuthService {
       throw const AuthException('Não foi possível abrir o navegador.');
     }
 
-    // 3. Aguarda o redirect com o code
+    // 3. Aguarda o redirect com o code (timeout de 5 minutos)
     onStatus?.call('Aguardando login no navegador...');
-    final code = await _waitForAuthCode(auth.server);
+    final code = await _waitForAuthCode(auth.server).timeout(
+      const Duration(minutes: 5),
+      onTimeout: () {
+        auth.server.close();
+        throw const AuthException(
+            'Tempo limite para login expirou. Tente novamente.');
+      },
+    );
 
     // 4. Troca code por token
     return _exchangeCodeForAccount(

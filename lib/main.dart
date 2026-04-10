@@ -119,7 +119,11 @@ class _AppRouterState extends State<AppRouter> {
     bool isLoggedIn = false;
 
     try {
-      isLoggedIn = await AuthService().loadSavedAccount() != null;
+      // Tenta renovar token expirado automaticamente (refresh token → novo MC token).
+      // Se o token estiver válido, retorna a conta direto. Se expirou mas tem
+      // refresh token, renova silenciosamente. Se falhar, retorna null → login screen.
+      final auth = AuthService();
+      isLoggedIn = await auth.refreshIfNeeded() != null;
     } catch (_) {
       isLoggedIn = false;
     }

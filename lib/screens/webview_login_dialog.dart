@@ -58,9 +58,11 @@ class _WebViewLoginDialogState extends State<WebViewLoginDialog> {
       await _webviewController.setPopupWindowPolicy(
           WebviewPopupWindowPolicy.deny);
 
-      // Escuta navegações para capturar o redirect
+      // Escuta navegações para capturar o redirect (aceita localhost e 127.0.0.1)
       _webviewController.url.listen((url) {
-        if (url.startsWith('http://localhost:') && url.contains('code=')) {
+        if ((url.startsWith('http://localhost:') ||
+                url.startsWith('http://127.0.0.1:')) &&
+            url.contains('code=')) {
           _onRedirectCaptured(url);
         }
       });
@@ -78,10 +80,10 @@ class _WebViewLoginDialogState extends State<WebViewLoginDialog> {
 
   Future<void> _onRedirectCaptured(String url) async {
     if (_exchanging) return;
-    setState(() {
-      _exchanging = true;
-      _status = 'Autenticando...';
-    });
+    // Seta _exchanging ANTES de qualquer await/setState para evitar race condition:
+    // o URL listener pode disparar múltiplas vezes antes do setState ser processado.
+    _exchanging = true;
+    if (mounted) setState(() => _status = 'Autenticando...');
 
     try {
       // Extrai o code da URL
