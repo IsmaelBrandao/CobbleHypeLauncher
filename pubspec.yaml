@@ -1,0 +1,72 @@
+name: cobblehype_launcher
+description: CobbleHype Launcher - NeoForge 1.21.1 Minecraft Launcher
+version: 1.0.0+1
+publish_to: none
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Rede e HTTP
+  http: ^1.2.2
+
+  # Preferências do usuário (RAM, resolução, path do JRE, tokens OAuth)
+  shared_preferences: ^2.3.2
+
+  # Armazenamento seguro para tokens OAuth (Keychain/Keystore/libsecret)
+  flutter_secure_storage: ^9.2.2
+
+  # Localizar pastas do sistema (AppData, home, etc.)
+  path_provider: ^2.1.4
+
+  # Validação de hash SHA-256 / SHA-1 dos arquivos baixados
+  crypto: ^3.0.5
+
+  # Extrair .zip e .tar.gz (JRE, NeoForge)
+  archive: ^3.6.1
+
+  # Versão do launcher (para futuro auto-update)
+  package_info_plus: ^8.1.1
+
+  # Abrir browser para Microsoft OAuth device code
+  url_launcher: ^6.3.1
+
+  # Lançar PojavLauncher via Android Intent (apenas Android)
+  android_intent_plus: ^5.1.0
+
+  # Ícones FontAwesome (ícone Windows para botão Microsoft)
+  font_awesome_flutter: ^10.8.0
+
+  # Gerenciar título e propriedades da janela desktop
+  window_manager: ^0.4.3
+  webview_windows: ^0.4.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  flutter_launcher_icons: ^0.14.3
+
+flutter_launcher_icons:
+  image_path: "assets/images/logo.png"
+  windows:
+    generate: true
+    image_path: "assets/images/logo.png"
+    icon_size: 48
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/
+
+  # Descomente se adicionar fontes customizadas:
+  # fonts:
+  #   - family: Rajdhani
+  #     fonts:
+  #       - asset: assets/fonts/Rajdhani-Regular.ttf
+  #       - asset: assets/fonts/Rajdhani-Bold.ttf
+  #         weight: 700
