@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:convert';
+import 'dart:isolate';
 import 'package:archive/archive_io.dart';
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
@@ -334,8 +335,9 @@ class JavaManager {
     if (await jreDir.exists()) await jreDir.delete(recursive: true);
     await jreDir.create(recursive: true);
 
-    // Extrai direto do disco (evita carregar ~180MB na RAM)
-    extractFileToDisk(archivePath, jreDir.path);
+    // Extrai direto do disco em isolate separado (evita carregar ~180MB na RAM
+    // E evita bloquear a UI thread durante extração de ~10-30s)
+    await Isolate.run(() => extractFileToDisk(archivePath, jreDir.path));
 
     // Remove o arquivo baixado
     await File(archivePath).delete();
