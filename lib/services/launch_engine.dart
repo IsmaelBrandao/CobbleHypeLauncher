@@ -124,8 +124,9 @@ class LaunchEngine {
     onProgress?.call('Fabric Loader instalado!', 1.0);
   }
 
-  /// Converte nome Maven (group:artifact:version) para path relativo de arquivo.
+  /// Converte nome Maven (group:artifact:version[:classifier]) para path relativo.
   /// Ex: "org.ow2.asm:asm:9.9" → "org/ow2/asm/asm/9.9/asm-9.9.jar"
+  /// Ex: "net.fabricmc:mapping-io:0.6.1:constants" → ".../mapping-io-0.6.1-constants.jar"
   String _mavenNameToPath(String name) {
     final parts = name.split(':');
     if (parts.length < 3) {
@@ -134,6 +135,10 @@ class LaunchEngine {
     final group = parts[0].replaceAll('.', '/');
     final artifact = parts[1];
     final version = parts[2];
+    if (parts.length >= 4) {
+      final classifier = parts[3];
+      return '$group/$artifact/$version/$artifact-$version-$classifier.jar';
+    }
     return '$group/$artifact/$version/$artifact-$version.jar';
   }
 

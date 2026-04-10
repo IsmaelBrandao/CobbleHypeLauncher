@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 
@@ -12,6 +13,10 @@ class LoggerService {
 
   File? _logFile;
   Directory? _crashDir;
+
+  // Buffer de escrita — flush a cada 250ms (evita open/write/close por linha)
+  final List<String> _writeBuffer = [];
+  Timer? _flushTimer;
 
   /// Inicializa o serviço: localiza o arquivo de log e realiza rotação se necessário.
   /// Deve ser chamado em main() antes de runApp().
@@ -47,15 +52,33 @@ class LoggerService {
   }
 
   /// Grava uma linha de log com timestamp ISO-8601 e nível.
+  /// Usa buffer + flush periódico (250ms) para evitar open/write/close por linha.
+  /// Minecraft pode emitir 50-200 linhas/s no startup — sem batching isso causa I/O storm.
   Future<void> log(String level, String message) async {
     if (_logFile == null) return;
     try {
       final timestamp = DateTime.now().toIso8601String();
       final line = '[$timestamp] [$level] $message\n';
-      await _logFile!.writeAsString(line, mode: FileMode.append);
-    } catch (_) {
-      // Falha silenciosa: erro de I/O não deve propagar para o caller
-    }
+      _writeBuffer.add(line);
+      _flushTimer ??= Timer(const Duration(milliseconds: 250), _flushBuffer);
+    } catch (_) {}
+  }
+
+  Future<void> _flushBuffer() async {
+    _flushTimer = null;
+    if (_writeBuffer.isEmpty || _logFile == null) return;
+    final batch = _writeBuffer.join();
+    _writeBuffer.clear();
+    try {
+      await _logFile!.writeAsString(batch, mode: FileMode.append);
+    } catch (_) {}
+  }
+
+  /// Flush imediato — chamar antes de sair do app ou em crash reports.
+  Future<void> flush() async {
+    _flushTimer?.cancel();
+    _flushTimer = null;
+    await _flushBuffer();
   }
 
   Future<void> info(String message) => log('INFO', message);
@@ -66,6 +89,7 @@ class LoggerService {
   /// Retorna o caminho do arquivo salvo, ou null se falhar.
   Future<String?> saveLauncherCrashReport(
       Object error, StackTrace? stackTrace) async {
+    await flush(); // Garante que logs pendentes sejam escritos antes do crash report
     if (_crashDir == null) return null;
     try {
       final now = DateTime.now();

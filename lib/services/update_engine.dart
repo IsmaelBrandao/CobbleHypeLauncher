@@ -638,7 +638,7 @@ class UpdateEngine {
       hashInput.add(chunk);
     }
     hashInput.close();
-    return digestSink.value.toString() == expectedSha1;
+    return digestSink.value?.toString() == expectedSha1;
   }
 
   Future<void> _downloadWithRetry(ModFile mod, Directory modsDir) async {
@@ -685,7 +685,8 @@ class UpdateEngine {
       await fileSink.close();
       hashInput.close();
 
-      if (digestSink.value.toString() != mod.sha1) {
+      final computedHash = digestSink.value?.toString() ?? '';
+      if (computedHash.isEmpty || computedHash != mod.sha1) {
         await file.delete();
         final msg = 'Hash inválido para ${mod.name}. Download corrompido.';
         await LoggerService.instance.error(msg);

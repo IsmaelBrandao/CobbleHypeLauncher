@@ -40,8 +40,13 @@ class _Particle {
 class _ParticlePainter extends CustomPainter {
   final List<_Particle> particles;
   final double time;
+  final Paint _glowPaint;
+  final Paint _dotPaint;
 
-  const _ParticlePainter({required this.particles, required this.time});
+  _ParticlePainter({required this.particles, required this.time})
+      : _glowPaint = Paint()
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
+        _dotPaint = Paint();
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -53,16 +58,14 @@ class _ParticlePainter extends CustomPainter {
       canvas.drawCircle(
         Offset(dx, dy),
         p.size * 3.5,
-        Paint()
-          ..color =
-              const Color(0xFFB8FFE0).withValues(alpha: p.opacity * 0.12)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
+        _glowPaint
+          ..color = const Color(0xFFB8FFE0).withValues(alpha: p.opacity * 0.12),
       );
 
       canvas.drawCircle(
         Offset(dx, dy),
         p.size,
-        Paint()
+        _dotPaint
           ..color = const Color(0xFFB8FFE0).withValues(alpha: p.opacity),
       );
     }

@@ -318,8 +318,8 @@ class JavaManager {
     hashInput.close();
 
     // Valida SHA-256
-    final computedHash = digestSink.value.toString();
-    if (computedHash != release.checksum) {
+    final computedHash = digestSink.value?.toString() ?? '';
+    if (computedHash.isEmpty || computedHash != release.checksum) {
       await file.delete();
       const msg = 'Download do JRE corrompido (hash inválido). Tente novamente.';
       await LoggerService.instance.error(msg);
